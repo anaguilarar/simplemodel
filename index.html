@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMPLE Crop Model — Field Station</title>
+<meta name="description" content="An interactive lesson in process-based crop modelling: turn a parameter, watch the biomass and the plant respond.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ====================================================================== -->
+<!-- Header                                                                  -->
+<!-- ====================================================================== -->
+<header class="app-header">
+    <div class="brand">
+        <span class="brand-mark">SIMPLE</span>
+        <span class="brand-name" data-i18n="brand.name">Field Station</span>
+        <span class="brand-sub" id="brand-context">Phaseolus vulgaris</span>
+    </div>
+    <nav class="modes" role="tablist" aria-label="Sections" data-i18n-aria="nav.aria">
+        <button class="mode-btn" role="tab" data-view="view-learn"   aria-selected="false" data-i18n="nav.learn">Learn</button>
+        <button class="mode-btn" role="tab" data-view="view-grow"    aria-selected="true"  data-i18n="nav.grow">Grow</button>
+        <button class="mode-btn" role="tab" data-view="view-analyze" aria-selected="false" data-i18n="nav.analyse">Analyse</button>
+        <button class="mode-btn" role="tab" data-view="view-trials"  aria-selected="false" data-i18n="nav.trials">Trials</button>
+    </nav>
+    <div class="seg lang-seg" id="lang-switch" role="tablist" aria-label="Language" data-i18n-aria="lang.aria">
+        <button role="tab" data-lang="en" aria-selected="true"  lang="en">EN</button>
+        <button role="tab" data-lang="es" aria-selected="false" lang="es">ES</button>
+    </div>
+</header>
+
+<!-- ====================================================================== -->
+<!-- Phenology ribbon — growth-stage key and time scrubber                   -->
+<!-- ====================================================================== -->
+<div class="ribbon" id="ribbon">
+    <div class="ribbon-side">
+        <div class="transport">
+            <button class="tbtn" id="btn-play" aria-pressed="false" title="Play the season" aria-label="Play the season"
+                    data-i18n-title="ribbon.play" data-i18n-aria="ribbon.play">
+                <svg viewBox="0 0 16 16" id="play-icon"><path d="M3 1.5v13l11-6.5z"/></svg>
+            </button>
+            <button class="tbtn" id="btn-rewind" title="Back to sowing" aria-label="Back to sowing"
+                    data-i18n-title="ribbon.rewind" data-i18n-aria="ribbon.rewind">
+                <svg viewBox="0 0 16 16"><path d="M3 1.5h2v13H3zM14 1.5v13L5.5 8z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="ribbon-track" id="ribbon-track">
+        <div class="ribbon-line"></div>
+        <div class="ribbon-fill" id="ribbon-fill"></div>
+        <div id="stage-nodes"></div>
+        <div class="ribbon-head" id="ribbon-head"></div>
+        <input type="range" class="ribbon-scrub" id="scrub" min="1" max="120" step="1" value="1"
+               aria-label="Day of season" data-i18n-aria="ribbon.scrub">
+    </div>
+
+    <div class="ribbon-side">
+        <div class="day-readout">
+            <span class="tag" data-i18n="ribbon.dayTag">Day of season</span><br>
+            <span class="d-num" id="day-num">1</span><span class="d-of" id="day-of"> / 90</span>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- LEARN                                                                   -->
+<!-- ====================================================================== -->
+<section class="view" id="view-learn">
+  <div class="workspace" style="grid-template-columns: 1fr;">
+    <div class="stack">
+
+      <div class="panel"><div class="panel-body" style="padding: 26px 28px;">
+        <div class="prose">
+          <p class="lede" data-i18n-html="learn.lede">A crop model is an argument about what limits a plant. SIMPLE makes that
+          argument in one line of arithmetic, repeated once a day, from sowing to maturity.</p>
+
+          <div class="eq">Biomass_rate = Radiation &times; f<sub>Solar</sub> &times; RUE &times; f(CO<sub>2</sub>) &times; f(Temp) &times; min[ f(Heat), f(Water) ]</div>
+          <p class="eq-note" data-i18n-html="learn.eq3note">Zhao et al. (2019), Equation 3. Everything this app does is an
+          exploration of that product.</p>
+
+          <p data-i18n-html="learn.p1">Read it from the left. <strong>Radiation</strong> is what the sky offers.
+          <strong>f<sub>Solar</sub></strong> is the share of it the canopy actually catches.
+          <strong>RUE</strong> is how efficiently the crop turns caught light into dry matter. The
+          remaining terms are all fractions between 0 and 1 — they can only take away.</p>
+
+          <p data-i18n-html="learn.p2">Note the <strong>min[ ]</strong>. Heat and drought do not stack. On any given day the
+          crop is held back by whichever is worse, following Liebig's law of the minimum. That
+          single choice explains a great deal of what you will see in the sandbox.</p>
+
+          <h2 data-i18n="learn.h2.three">Three things decide a yield</h2>
+          <p data-i18n-html="learn.three.p">The controls in this app are grouped the way agronomists actually think about a
+          field — the G &times; E &times; M framing:</p>
+          <ul>
+            <li data-i18n-html="learn.li.g"><strong>G — the seed.</strong> What the breeder fixed before the season started:
+              radiation use efficiency, harvest index, how fast the canopy closes, how long it
+              takes to mature, which temperatures the crop can tolerate.</li>
+            <li data-i18n-html="learn.li.e"><strong>E — the sky and the ground.</strong> What the season delivers and what the
+              field holds: temperature, rainfall, radiation, CO<sub>2</sub>, and the soil's
+              capacity to store water between showers.</li>
+            <li data-i18n-html="learn.li.m"><strong>M — the farmer.</strong> What is actually decided on the ground: sowing
+              date, plant density, whether to irrigate.</li>
+          </ul>
+          <p data-i18n-html="learn.three.p2">A parameter that dominates in one combination barely matters in another. The
+          <strong>Analyse</strong> section ranks them for whatever situation you have set up, which
+          is more useful than any fixed list.</p>
+
+          <h2 data-i18n="learn.h2.timing">How the season is timed</h2>
+          <p data-i18n-html="learn.timing.p1">SIMPLE has no calendar. It has a thermometer. Each day it banks the mean temperature
+          above a base threshold, and the crop matures when the bank reaches T<sub>sum</sub>:</p>
+          <div class="eq">&Delta;TT = max(0, T&#772; &minus; T<sub>base</sub>)&nbsp;&nbsp;&nbsp;&nbsp;TT<sub>i+1</sub> = TT<sub>i</sub> + &Delta;TT&nbsp;&nbsp;&nbsp;&nbsp;maturity when TT &ge; T<sub>sum</sub></div>
+          <p data-i18n-html="learn.timing.p2">This is why warming is not simply good or bad. A warmer season fills the thermal bank
+          faster, so the crop matures sooner — fewer days of light captured, less biomass — even
+          before any heat damage occurs. Push the temperature slider and watch the season length
+          fall before the heat-stress counter ever moves.</p>
+
+          <h2 data-i18n="learn.h2.canopy">How the canopy opens and closes</h2>
+          <p data-i18n-html="learn.canopy.p1">f<sub>Solar</sub> is two logistic curves meeting at a minimum: one for expansion, one
+          for senescence.</p>
+          <div class="eq">f<sub>Solar</sub> = min[ &nbsp;f<sub>max</sub> / (1 + e<sup>&minus;0.01(TT &minus; I50A)</sup>),&nbsp;&nbsp; f<sub>max</sub> / (1 + e<sup>&nbsp;0.01(TT &minus; (T<sub>sum</sub> &minus; I50B))</sup>) &nbsp;]</div>
+          <p data-i18n-html="learn.canopy.p2"><strong>I50A</strong> sets how quickly the canopy builds; <strong>I50B</strong> sets
+          how long it stays up. And I50B is not constant — every day of heat or drought adds to it,
+          which pulls senescence forward:</p>
+          <div class="eq">I50B<sub>i+1</sub> = I50B<sub>i</sub> + I50max<sub>H</sub>(1 &minus; f(Heat)) + I50max<sub>W</sub>(1 &minus; f(Water))</div>
+          <p data-i18n-html="learn.canopy.p3">This is the model's memory. A heat wave in week four is still costing you light in
+          week ten, because the canopy aged.</p>
+
+          <div class="callout">
+            <span class="tag" data-i18n-html="learn.callout1.tag">Why f<sub>Solar</sub> and not leaf area</span>
+            <span data-i18n-html="learn.callout1.body">SIMPLE deliberately tracks intercepted <em>light</em> rather than leaf area index,
+            which removes a whole layer of parameters. The 3D plant in the Grow section runs that
+            choice backwards — inverting Beer-Lambert, LAI = &minus;ln(1 &minus; f<sub>Solar</sub>) / k
+            — to recover a leaf area it can actually draw. The plant is a picture of the model's
+            state, not a separate simulation.</span>
+          </div>
+
+          <h2 data-i18n="learn.h2.water">Where the water comes from</h2>
+          <p data-i18n-html="learn.water.p1">Rain that falls is not rain that is used. A curve-number step removes runoff, a
+          drainage step removes what the soil cannot hold, and what remains is available for
+          transpiration. The shortfall between what the crop wanted and what it got is the ARID
+          index, and f(Water) follows from it:</p>
+          <div class="eq">ARID = 1 &minus; (Transpiration / ET<sub>o</sub>)&nbsp;&nbsp;&nbsp;&nbsp;f(Water) = 1 &minus; S<sub>water</sub> &times; ARID</div>
+          <p data-i18n-html="learn.water.p2">S<sub>water</sub> is a species trait. Maize sits at 1.2, wheat at 0.4 — the same dry
+          spell costs them very different amounts.</p>
+
+          <h2 data-i18n="learn.h2.gap">The gap worth measuring</h2>
+          <p data-i18n-html="learn.gap.p">Running the same crop twice — once with water limitation and once without — gives two
+          numbers that frame every yield conversation:</p>
+          <ul>
+            <li data-i18n-html="learn.gap.li1"><strong>Y<sub>p</sub>, potential yield.</strong> Water is never limiting. Set by
+              radiation, temperature, CO<sub>2</sub> and genetics alone.</li>
+            <li data-i18n-html="learn.gap.li2"><strong>Y<sub>w</sub>, water-limited yield.</strong> The crop lives on rainfall and
+              whatever the soil stored.</li>
+            <li data-i18n-html="learn.gap.li3"><strong>The yield gap</strong> is the difference — and it tells you whether the
+              constraint in front of you is water, or something irrigation cannot fix.</li>
+          </ul>
+
+          <div class="callout">
+            <span class="tag" data-i18n-html="learn.callout2.tag">A caution about the numbers</span>
+            <span data-i18n-html="learn.callout2.body">The weather here is generated from smooth seasonal functions, not measured records, and
+            some cultivar T<sub>sum</sub> values have been recalibrated to suit those synthetic
+            climates. Treat every absolute yield as illustrative. The <em>relationships</em> — the
+            direction and shape of each response — are what this app is for.</span>
+          </div>
+        </div>
+      </div></div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<!-- GROW                                                                    -->
+<!-- ====================================================================== -->
+<section class="view active" id="view-grow">
+  <div class="workspace">
+
+    <!-- ---- control rail ---- -->
+    <div class="panel rail">
+        <div class="panel-head">
+            <span class="panel-title" data-i18n="grow.controls">Controls</span>
+            <span class="spacer"></span>
+            <button class="btn btn-sm" id="btn-explain" aria-pressed="false" title="Show a note under every control"
+                    data-i18n="grow.notes" data-i18n-title="grow.notes.title">Notes</button>
+            <button class="btn btn-sm" id="btn-reset" data-i18n="grow.reset">Reset</button>
+        </div>
+
+        <div class="panel-body" style="border-bottom: 1px solid var(--rule-soft);">
+            <div class="field">
+                <span class="tag" data-i18n="grow.crop">Crop</span>
+                <select id="sel-species" aria-label="Crop species" data-i18n-aria="grow.crop.aria"></select>
+            </div>
+            <div class="field">
+                <span class="tag" data-i18n="grow.cultivar">Cultivar</span>
+                <select id="sel-cultivar" aria-label="Cultivar" data-i18n-aria="grow.cultivar"></select>
+            </div>
+            <p class="muted" id="cultivar-note" style="font-family: var(--prose); font-size: 12.5px; line-height: 1.45; margin: -4px 0 11px;"></p>
+            <div class="field">
+                <span class="tag" data-i18n="grow.climate">Climate</span>
+                <select id="sel-climate" aria-label="Climate zone" data-i18n-aria="grow.climate.aria">
+                    <option value="tropical"       data-i18n="grow.climate.tropical">Tropical — bimodal rain</option>
+                    <option value="subtropical"    data-i18n="grow.climate.subtropical">Subtropical — summer rain</option>
+                    <option value="semi_arid"      data-i18n="grow.climate.semi_arid">Semi-arid — winter rain</option>
+                    <option value="cool_temperate" data-i18n="grow.climate.cool_temperate">Cool temperate</option>
+                </select>
+            </div>
+            <div class="field">
+                <span class="tag" data-i18n="grow.soil">Soil texture</span>
+                <select id="sel-soil" aria-label="Soil texture" data-i18n-aria="grow.soil.aria"></select>
+            </div>
+            <div class="switch-row">
+                <button class="switch" id="sw-irrigation" role="switch" aria-checked="false" aria-label="Irrigation" data-i18n-aria="grow.irrigation.aria"></button>
+                <span class="switch-label" id="irrigation-label">Rainfed &mdash; showing Y<sub>w</sub></span>
+            </div>
+        </div>
+
+        <div id="param-groups"></div>
+    </div>
+
+    <!-- ---- stage ---- -->
+    <div class="stack">
+
+        <div class="readout" id="readout"></div>
+
+        <div class="panel viewport-wrap">
+            <div class="panel-head">
+                <span class="panel-title" data-i18n="grow.plant">The plant</span>
+                <span class="spacer"></span>
+                <div class="seg" id="seg-vpmode" role="tablist" aria-label="Plant view" data-i18n-aria="grow.vpmode.aria">
+                    <button role="tab" data-vpmode="single"  aria-selected="true"  data-i18n="grow.vp.single">Single</button>
+                    <button role="tab" data-vpmode="compare" aria-selected="false" data-i18n="grow.vp.compare">Rainfed vs irrigated</button>
+                    <button role="tab" data-vpmode="field"   aria-selected="false" data-i18n="grow.vp.field">Stand</button>
+                </div>
+                <button class="btn btn-sm" id="btn-rays" aria-pressed="false" title="Cast rays to show light interception"
+                        data-i18n="grow.rays" data-i18n-title="grow.rays.title">Light rays</button>
+            </div>
+            <div class="viewport" id="viewport">
+                <div class="vp-stage" id="vp-stage">
+                    <div class="vp-stage-code" id="vp-stage-code">VE</div>
+                    <div class="vp-stage-label" id="vp-stage-label">Emergence</div>
+                    <div class="vp-stage-detail" id="vp-stage-detail"></div>
+                </div>
+                <div class="vp-overlay" id="vp-overlay"></div>
+                <div class="vp-note" data-i18n-html="grow.vp.note">Geometry derived from model state<br>(TT, f<sub>Solar</sub>, f<sub>water</sub>, f<sub>heat</sub>) &mdash; not simulated morphology</div>
+                <div class="vp-rays hide" id="vp-rays"></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title" data-i18n="grow.season">Season trajectory</span>
+                <span class="spacer"></span>
+                <div class="seg" id="seg-chart" role="tablist" aria-label="Chart" data-i18n-aria="grow.chart.aria">
+                    <button role="tab" data-chart="biomass" aria-selected="true"  data-i18n="grow.chart.biomass">Biomass</button>
+                    <button role="tab" data-chart="canopy"  aria-selected="false" data-i18n="grow.chart.canopy">Canopy</button>
+                    <button role="tab" data-chart="stress"  aria-selected="false" data-i18n="grow.chart.stress">Stress</button>
+                    <button role="tab" data-chart="weather" aria-selected="false" data-i18n="grow.chart.weather">Weather</button>
+                    <button role="tab" data-chart="water"   aria-selected="false" data-i18n="grow.chart.water">Soil water</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="chart-box"><canvas id="chart-main"></canvas></div>
+            </div>
+        </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<!-- ANALYSE                                                                 -->
+<!-- ====================================================================== -->
+<section class="view" id="view-analyze">
+  <div class="workspace" style="grid-template-columns: 1fr;">
+    <div class="stack">
+
+      <div class="grid-2">
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title" data-i18n="an.today">Where today's growth went</span>
+                <span class="spacer"></span>
+                <span class="tag" id="wf-day-label">Day 1</span>
+            </div>
+            <div class="panel-body">
+                <div class="waterfall" id="waterfall"></div>
+                <p class="muted" data-i18n-html="an.wf.note" style="font-family: var(--prose); font-size: 12.5px; margin-top: 12px;">
+                    Each bar is the growth rate after one more factor is applied. The reference at the
+                    top is a closed canopy with no temperature, heat or water limitation under the same
+                    radiation and CO<sub>2</sub>. Drag the ribbon to move through the season.
+                </p>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title" data-i18n="an.season">Where the season went</span></div>
+            <div class="panel-body">
+                <div class="chart-box short"><canvas id="chart-losses"></canvas></div>
+                <p id="loss-sentence" style="font-family: var(--prose); font-size: 14px; color: var(--ink-2); margin-top: 12px; line-height: 1.5;"></p>
+            </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+            <span class="panel-title" data-i18n="an.tornado">Which parameter matters most, here</span>
+            <span class="spacer"></span>
+            <label class="tag" for="tor-pct" data-i18n="an.perturbation">Perturbation</label>
+            <select id="tor-pct" style="width: auto;" aria-label="Perturbation size" data-i18n-aria="an.perturbation.aria">
+                <option value="0.05" data-i18n-html="an.pct5">&plusmn;5% of range</option>
+                <option value="0.15" selected data-i18n-html="an.pct15">&plusmn;15% of range</option>
+                <option value="0.30" data-i18n-html="an.pct30">&plusmn;30% of range</option>
+            </select>
+            <div class="seg" id="seg-tormetric" role="tablist" aria-label="Tornado metric" data-i18n-aria="an.metric.aria">
+                <button role="tab" data-metric="biomass" aria-selected="true"  data-i18n="an.metric.biomass">Biomass</button>
+                <button role="tab" data-metric="yield"   aria-selected="false" data-i18n="an.metric.yield">Yield</button>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="tornado" id="tornado"></div>
+            <p class="muted" data-i18n-html="an.tornado.note" style="font-family: var(--prose); font-size: 12.5px; margin-top: 12px;">
+                Every parameter is nudged up and down by the same fraction of its own plausible range,
+                and the model re-run each time. The ranking is specific to the crop, climate and soil
+                you have set — change any of them and the order changes.
+            </p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title" data-i18n="an.sweep">Response curve</span>
+                <span class="spacer"></span>
+                <select id="sel-sweep" style="width: auto; max-width: 190px;" aria-label="Parameter to sweep" data-i18n-aria="an.sweep.aria"></select>
+            </div>
+            <div class="panel-body">
+                <div class="chart-box"><canvas id="chart-sweep"></canvas></div>
+                <p class="muted" id="sweep-note" style="font-family: var(--prose); font-size: 12.5px; margin-top: 10px;"></p>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title" data-i18n="an.surface">Response surface</span>
+                <span class="spacer"></span>
+                <select id="sel-surf-x" style="width: auto; max-width: 132px;" aria-label="Surface X axis" data-i18n-aria="an.surface.x"></select>
+                <select id="sel-surf-y" style="width: auto; max-width: 132px;" aria-label="Surface Y axis" data-i18n-aria="an.surface.y"></select>
+            </div>
+            <div class="panel-body">
+                <div class="surface-wrap">
+                    <canvas class="surface-canvas" id="surface" width="320" height="260"></canvas>
+                    <div class="surface-axis-x" id="surf-x-label"></div>
+                </div>
+                <div class="legend-strip">
+                    <span class="num" id="surf-min" style="font-size: 11px;"></span>
+                    <div class="legend-grad" id="surf-grad"></div>
+                    <span class="num" id="surf-max" style="font-size: 11px;"></span>
+                </div>
+                <p class="muted" id="surf-note" style="font-family: var(--prose); font-size: 12.5px; margin-top: 10px;"></p>
+            </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+            <span class="panel-title" data-i18n="an.compare">Compare two scenarios</span>
+            <span class="spacer"></span>
+            <button class="btn btn-sm" id="btn-save-a" data-i18n="an.saveA">Save as A</button>
+            <button class="btn btn-sm" id="btn-save-b" data-i18n="an.saveB">Save as B</button>
+            <button class="btn btn-sm" id="btn-clear-scen" data-i18n="an.clear">Clear</button>
+        </div>
+        <div class="panel-body">
+            <div class="scen-row" style="margin-bottom: var(--gutter);">
+                <div class="scen" data-slot="A">
+                    <div class="scen-head"><span class="scen-name" data-i18n="an.scenA">Scenario A</span></div>
+                    <div class="scen-meta" id="scen-a"><span class="scen-empty">Set up a run in Grow, then save it here.</span></div>
+                </div>
+                <div class="scen" data-slot="B">
+                    <div class="scen-head"><span class="scen-name" data-i18n="an.scenB">Scenario B</span></div>
+                    <div class="scen-meta" id="scen-b"><span class="scen-empty">Change something, then save the second run.</span></div>
+                </div>
+            </div>
+            <div class="chart-box" id="cmp-box"><canvas id="chart-compare"></canvas></div>
+            <div style="overflow-x: auto; margin-top: var(--gutter);">
+                <table class="tbl"><thead><tr>
+                    <th data-i18n="an.th.metric">Metric</th>
+                    <th data-i18n="an.th.a">Scenario A</th>
+                    <th data-i18n="an.th.b">Scenario B</th>
+                    <th data-i18n="an.th.diff">Difference</th>
+                </tr></thead><tbody id="cmp-table"></tbody></table>
+            </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<!-- TRIALS                                                                  -->
+<!-- ====================================================================== -->
+<section class="view" id="view-trials">
+  <div class="workspace" style="grid-template-columns: 1fr;">
+    <div class="stack">
+      <div class="panel"><div class="panel-body">
+        <div class="prose" style="max-width: 62ch;">
+          <h2 style="margin-top: 0;" data-i18n="tr.h2">Guided trials</h2>
+          <p data-i18n-html="tr.p">Each trial loads a configuration and poses a question. Load it, then move to
+          <strong>Grow</strong> to watch the season, or <strong>Analyse</strong> to see which
+          parameter is driving the result.</p>
+        </div>
+      </div></div>
+      <div class="exp-grid" id="exp-grid"></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+    <p data-i18n-html="ft.model"><strong>Model.</strong> Zhao, C., Liu, B., Xiao, L., Hoogenboom, G., Boote, K. J., Kassie, B. T.,
+    Pavan, W., Shelia, V., Kim, K. S., Hernandez-Ochoa, I. M., Wallach, D., Porter, C. H., Stockle, C. O.,
+    Zhu, Y., &amp; Asseng, S. (2019). A SIMPLE crop model. <em>European Journal of Agronomy</em>, 104, 97&ndash;106.</p>
+    <p data-i18n-html="ft.water"><strong>Water balance.</strong> Woli, P., Jones, J. W., Ingram, K. T., &amp; Fraisse, C. W. (2012).
+    Agricultural Reference Index for Drought (ARID). <em>Agronomy Journal</em>, 104(2), 287&ndash;300.</p>
+    <p data-i18n-html="ft.staging"><strong>Bean staging.</strong> CIAT growth-stage scale for <em>Phaseolus vulgaris</em>
+    (Fern&aacute;ndez, Gepts &amp; L&oacute;pez).</p>
+    <p class="muted" style="margin-top: 12px;" data-i18n="ft.caution">Weather is synthetic. Absolute yields are illustrative;
+    the shape of each response is the lesson.</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/simple_model.js"></script>
+<script src="js/explorer.js"></script>
+<script src="js/canopy2d.js"></script>
+<script type="module" src="js/plant3d.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
